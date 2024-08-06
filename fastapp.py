@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from bot import start_bot, confirm_stats, post_match_summary
 from stats_manager import global_stats_manager
 
+
 # define global instances
 codes = {}
 app = FastAPI()
