@@ -140,11 +140,14 @@ async def main():
     asyncio.create_task(cleanup_codes())
     # Create a task for the bot
     bot_task = asyncio.create_task(start_bot())
+    print("create bot task")
     # Start the FastAPI app
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000)
+    config = uvicorn.Config(app, host="127.0.0.1", port=8000)
     server = uvicorn.Server(config)
+    print("awaiting server")
     await server.serve()
     # Wait for the bot task to finish (it generally won't unless there's an error or shutdown)
+    print("awaiting bot task")
     await bot_task
 
 if __name__ == "__main__":
