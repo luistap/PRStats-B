@@ -12,8 +12,9 @@ from fuzzywuzzy import process
 from psycopg2 import OperationalError
 from google.cloud import vision
 from dotenv import load_dotenv
+from google.oauth2 import service_account
 
-load_dotenv()
+
 
 # Configure your Cloudinary credentials
 cloudinary.config(
@@ -26,10 +27,20 @@ cloudinary.config(
 HIGH_CONFIDENCE = 90
 LOW_CONFIDENCE = 50
 
-# Set up Google Vision API client
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
+credentials = service_account.Credentials.from_service_account_info({
+    "type": os.getenv("GOOGLE_TYPE"),
+    "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+    "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),
+    "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+    "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+    "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
+    "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+})
 
-client = vision.ImageAnnotatorClient()
+client = vision.ImageAnnotatorClient(credentials=credentials)
 
 def detect_text_path(image_path):
     """Use Google Vision API for OCR."""
