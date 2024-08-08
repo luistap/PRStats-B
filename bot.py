@@ -175,7 +175,7 @@ async def map_stats(ctx, player: str, map_name: str):
             "SELECT map_id FROM Maps WHERE map_name = $1", map_name
         )
         if not map_id:
-            await ctx.send("Map not found.")
+            await ctx.reply("Map not found.")
             return
 
         # Fetch player stats for the specific map dynamically
@@ -194,22 +194,28 @@ async def map_stats(ctx, player: str, map_name: str):
         )
 
         if not stats or stats['matches_played'] == 0:
-            await ctx.send(f"No stats available for {player} on {map_name}.")
+            await ctx.reply(f"No stats available for {player} on {map_name}.")
             return
 
         # Calculate K/D ratio, handling division by zero
         kd_ratio = stats['total_kills'] / stats['total_deaths'] if stats['total_deaths'] > 0 else float('inf')
-        response = (f"**Stats for {player} on {map_name}:**\n"
-                    f"Matches Played: {stats['matches_played']}\n"
-                    f"Matches Won: {stats['matches_won']}\n"
-                    f"Matches Lost: {stats['matches_lost']}\n"
-                    f"Total Kills: {stats['total_kills']}\n"
-                    f"Total Deaths: {stats['total_deaths']}\n"
-                    f"K/D Ratio: {kd_ratio:.2f}")
 
-        await ctx.send(response)
+        # Capitalize the first letter of the map name
+        map_name_capitalized = map_name.capitalize()
+
+        # Create an embed with a title and fields for each statistic
+        embed = discord.Embed(title=f"Stats for {player} on {map_name_capitalized}", color=0x3498db)  # You can change the color code to match your theme
+        embed.add_field(name="Matches Played", value=stats['matches_played'], inline=True)
+        embed.add_field(name="Matches Won", value=stats['matches_won'], inline=True)
+        embed.add_field(name="Matches Lost", value=stats['matches_lost'], inline=True)
+        embed.add_field(name="Total Kills", value=stats['total_kills'], inline=True)
+        embed.add_field(name="Total Deaths", value=stats['total_deaths'], inline=True)
+        embed.add_field(name="K/D Ratio", value=f"{kd_ratio:.2f}", inline=True)
+
+        # Send the embed as a response
+        await ctx.reply(embed=embed)
     except Exception as e:
-        await ctx.send(f"An error occurred: {str(e)}")
+        await ctx.reply(f"An error occurred: {str(e)}")
         print(f"Error: {str(e)}")  # Log the error for debugging purposes
 
 
@@ -259,7 +265,7 @@ async def h2h(ctx, player1: str, player2: str):
         embed = discord.Embed(
             title="Head-to-Head Record",
             description=record_description,
-            color=discord.Color.blue()
+            color=discord.Color.red()
         )
         embed.set_image(url=merged_url) 
 
@@ -360,7 +366,6 @@ def generate_image_url(base_url):
     return f"{base_url}?v={timestamp}"
 
 
-
 @bot.command(name='player', help='Displays general statistics of a player')
 async def player_stats(ctx, player_name: str):
     async with pool.acquire() as connection:
@@ -406,7 +411,6 @@ async def player_stats(ctx, player_name: str):
         embed.set_footer(text="Statistics are updated in real-time based on available data.")
 
         await ctx.reply(embed=embed, mention_author=True)
-
 
 
 
