@@ -21,7 +21,7 @@ app = FastAPI()
 # Add CORS middleware for development flexibility
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://scoreboard-packrunners.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
