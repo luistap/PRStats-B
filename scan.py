@@ -9,7 +9,7 @@ model, device = None, None
 
 def initialize_model():
     global model, device
-    model_path = 'C:/Users/ltper/OneDrive/Desktop/cnn/models'
+    model_path = 'models'
     model, device = load_model(model_path)
     model.eval()
 
