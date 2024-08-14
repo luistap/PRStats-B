@@ -178,7 +178,10 @@ async def map_stats(ctx, player: str, map_name: str):
         if map_id is None:
             await ctx.reply("Map not found.")
             return
-
+        
+        full_name = await pool.fetchval(
+            "SELECT full_name FROM Maps WHERE map_name = $1", map_name
+        )
         # Fetch player stats for the specific map dynamically
         stats = await pool.fetchrow(
             """
@@ -195,14 +198,14 @@ async def map_stats(ctx, player: str, map_name: str):
         )
 
         if not stats or stats['matches_played'] == 0:
-            await ctx.reply(f"No stats available for {player} on {map_name}.")
+            await ctx.reply(f"No stats available for {player} on {full_name}.")
             return
 
         # Calculate K/D ratio, handling division by zero
         kd_ratio = stats['total_kills'] / stats['total_deaths'] if stats['total_deaths'] > 0 else float('inf')
 
         # Capitalize the first letter of the map name
-        map_name_capitalized = map_name.capitalize()
+        map_name_capitalized = full_name.capitalize()
 
         # Create an embed with a title and fields for each statistic
         embed = discord.Embed(title=f"Stats for {player} on {map_name_capitalized}", color=0x3498db)  # You can change the color code to match your theme
