@@ -111,6 +111,7 @@ async def on_close():
 async def start_bot():
     await bot.start(token)
 
+
 @bot.command(name='list', help='Lists all registered player names in multiple embeds')
 async def list_players(ctx):
     async with pool.acquire() as connection:
@@ -174,7 +175,7 @@ async def map_stats(ctx, player: str, map_name: str):
         map_id = await pool.fetchval(
             "SELECT map_id FROM Maps WHERE map_name = $1", map_name
         )
-        if not map_id:
+        if map_id is None:
             await ctx.reply("Map not found.")
             return
 

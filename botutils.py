@@ -1,6 +1,5 @@
 # helper functions for bot operations
 
-
 STAT_TYPE_ORDER = ["Kills", "Deaths", "Assists"]
 
 def format_player_stats(team_info):
