@@ -41,7 +41,7 @@ credentials = service_account.Credentials.from_service_account_info({
 
 
 
-client = storage.Client()
+client = storage.Client(credentials=credentials, project=credentials.project_id)
 bucket_name = os.getenv('BUCKET_NAME')
 bucket = client.bucket(bucket_name)
 
