@@ -10,7 +10,7 @@ import secrets
 import aiohttp
 import botutils
 from discord import ButtonStyle
-from discord.ui import View, Select, Modal, TextInput
+from discord.ui import View, Select, Modal, TextInput, Button
 from stats_manager import global_stats_manager
 import asyncpg
 from google.cloud import storage
@@ -20,7 +20,10 @@ from google.oauth2 import service_account
 from io import BytesIO
 import time
 
-
+'''
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
+load_dotenv()
+'''
 
 
 credentials = service_account.Credentials.from_service_account_info({
@@ -37,13 +40,14 @@ credentials = service_account.Credentials.from_service_account_info({
 })
 
 
-client = storage.Client(credentials=credentials, project=credentials.project_id)
+
+client = storage.Client()
 bucket_name = os.getenv('BUCKET_NAME')
 bucket = client.bucket(bucket_name)
 
 
 token = os.getenv('TOKEN')
-channel_send = 880977932892385330
+channel_send = 1276412274705432650
 
 default_pfp = os.getenv('DEFAULT_PFP')
 
@@ -110,6 +114,64 @@ async def on_close():
 # Define a function to start the bot
 async def start_bot():
     await bot.start(token)
+
+
+class ApplicationView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)  # Set timeout to None for persistence
+
+    @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id="application:apply")
+    async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        user_id = interaction.user.id
+        # do we have a matching ID in the database?
+        async with pool.acquire() as connection:
+            existing_app = await connection.fetch('SELECT 1 FROM tms_apps WHERE discord_id = $1', user_id)
+            if existing_app:
+                await interaction.response.send_message("You have already submitted an application.", ephemeral=True)
+                return
+
+        modal = app_modal()
+        await interaction.response.send_modal(modal)
+
+
+class app_modal(Modal):
+    def __init__(self, title="Application form"):
+        super().__init__(title=title)
+        self.add_item(TextInput(label="In-game handle"))
+        self.add_item(TextInput(label="R6 Tracker Link"))
+
+
+    async def on_submit(self, interaction: discord.Interaction):
+
+        await interaction.response.send_message("Application sent.", ephemeral=True)
+        handle = self.children[0].value
+        tracker_link = self.children[1].value
+        discord_id = interaction.user.id
+        # check name match in db
+        async with pool.acquire() as connection:
+            player_id = await connection.fetchval('SELECT player_id FROM Players WHERE name = $1', handle)
+            # Insert the new application record
+            await connection.execute('''
+                INSERT INTO tms_apps (player_id, discord_id, name, tracker_link)
+                VALUES ($1, $2, $3, $4)
+            ''', player_id, discord_id , handle, tracker_link)
+        
+        await botutils.add_to_sheet(handle, tracker_link, discord_id)
+        return
+
+
+
+@bot.command(name='apply')
+async def start_application(ctx):
+    embed = discord.Embed(
+        title="Application Process",
+        description="Click the button below to submit a new application.",
+        color=discord.Color.orange()
+    )
+    view = ApplicationView()  # Use the persistent view
+    await ctx.send(embed=embed, view=view)
+
 
 
 @bot.command(name='list', help='Lists all registered player names in multiple embeds')
@@ -279,7 +341,7 @@ async def h2h(ctx, player1: str, player2: str):
 async def fetch_h2h_record(connection, player1, player2):
     # Fetch player details for both players
     players = await connection.fetch(
-        "SELECT player_id, name, profile_pic_url FROM Players WHERE name = $1 OR name = $2",
+        "SELECT player_id, name, profile_pic_url FROM Players WHERE name ILIKE $1 OR name ILIKE $2",
         player1, player2
     )
     if len(players) < 2:
@@ -304,8 +366,8 @@ async def fetch_h2h_record(connection, player1, player2):
 
     # Create a correctly ordered response based on input order, not player_id
     response = {
-        'player_one_name': player1,
-        'player_two_name': player2,
+        'player_one_name': player1_data['name'],
+        'player_two_name': player2_data['name'],
         'player_one_wins': None,
         'player_two_wins': None,
         'player_one_pic': player1_data['profile_pic_url'],
@@ -370,11 +432,13 @@ def generate_image_url(base_url):
     return f"{base_url}?v={timestamp}"
 
 
+# !player command, for tournament stats
 @bot.command(name='player', help='Displays general statistics of a player')
 async def player_stats(ctx, player_name: str):
     async with pool.acquire() as connection:
         query = """
         SELECT 
+            P.name AS registered_name,
             P.profile_pic_url,
             COALESCE(SUM(PS.kills), 0) AS total_kills,
             COALESCE(SUM(PS.deaths), 0) AS total_deaths,
@@ -384,14 +448,20 @@ async def player_stats(ctx, player_name: str):
             COALESCE(SUM(PS.assists), 0) AS total_assists
         FROM Players P
         LEFT JOIN Player_Stats PS ON P.player_id = PS.player_id
-        WHERE P.name = $1
-        GROUP BY P.profile_pic_url;
+        WHERE P.name ILIKE $1
+        GROUP BY P.profile_pic_url, P.name;
         """
         player = await connection.fetchrow(query, player_name)
 
         if not player:
-            await ctx.send("Player not found.")
-            return
+                embed = discord.Embed(
+                title="Player Check",
+                description=f"Player name `{player_name}` does not exist in the database.",
+                color=discord.Color.red()  # Red color to indicate an issue or non-existence
+                )
+                embed.set_footer(text="Try checking the spelling or adding them if they're new.")
+                await ctx.reply(embed=embed)
+                return
 
         kd_ratio = player['total_kills'] / player['total_deaths'] if player['total_deaths'] > 0 else float(player['total_kills'])
         win_rate = (player['matches_won'] / player['matches_played'] * 100) if player['matches_played'] > 0 else 0
@@ -407,7 +477,7 @@ async def player_stats(ctx, player_name: str):
 
         # Create the embed
         embed = discord.Embed(
-            title=f"Player Statistics for {player_name}",
+            title=f"Player Statistics for {player['registered_name']}",
             description=stats_description,
             color=discord.Color.red()
         )

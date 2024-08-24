@@ -45,7 +45,6 @@ async def cleanup_codes(interval: int = 300):
 async def store_access_code(data: AccessCodeData):
     expiration_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
     codes[data.access_code] = {'user_id': data.user_id, 'expires': expiration_time}
-    print(codes[data.access_code])
     return {"message": "Access code stored"}
 
 
@@ -81,7 +80,6 @@ async def upload_image(
             paths[label] = save_image(image_data, label)
 
         gen_info = [map, match_type, final_score]
-        print(gen_info)
         team1_info = {}
         team2_info = {}
 
@@ -98,19 +96,13 @@ async def upload_image(
        # await utilities.process_names(team1_info.keys(), db_names, user_id, team1_info)
        # await utilities.process_names(team2_info.keys(), db_names, user_id, team2_info)
         
-        print(team1_info)
-        print(team2_info)
         global_stats_manager.set_teams(team1_info, team2_info)
-        print(f"Processing data for user {user_id}")
-        print(user_id)
 
         await confirm_stats(user_id, team1_info, team2_info)
 
         team1_info = global_stats_manager.get_team_info('team1')
         team2_info = global_stats_manager.get_team_info('team2')
         # team1 and team2 info now correct, write to the db
-        print(team1_info)
-        print(team2_info)
 
         # we write to the db here
         # Assuming conn is your active database connection
@@ -140,14 +132,11 @@ async def main():
     asyncio.create_task(cleanup_codes())
     # Create a task for the bot
     bot_task = asyncio.create_task(start_bot())
-    print("create bot task")
     # Start the FastAPI app
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
-    print("awaiting server")
     await server.serve()
     # Wait for the bot task to finish (it generally won't unless there's an error or shutdown)
-    print("awaiting bot task")
     await bot_task
 
 if __name__ == "__main__":
