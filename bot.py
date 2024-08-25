@@ -622,7 +622,7 @@ class PlayerSelect(Select):
 
 class ConfirmationView(View):
     def __init__(self, user_id, team1_info, team2_info):
-        super().__init__(timeout=180)
+        super().__init__(timeout=None)
         self.user_id = user_id
         self.team1_info = team1_info
         self.team2_info = team2_info
