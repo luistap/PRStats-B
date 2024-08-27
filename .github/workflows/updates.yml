@@ -1,0 +1,21 @@
+name: Custom Discord Notification
+on: [push]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Send Custom Notification
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
+          GITHUB_ACTOR="${{ github.actor }}"  # This is the username of the person who initiated the action
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d "{\"username\": \"GitHub Bot\", \"content\": \"[${{ github.repository }}: ${{ github.ref }}] New PRStats Updates: $COMMIT_MESSAGE\"}" \
+          $WEBHOOK_URL
+
