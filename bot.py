@@ -174,29 +174,19 @@ async def start_application(ctx):
 
 
 
-@bot.command(name='list', help='Lists all registered player names in multiple embeds')
+@bot.command(name='list', help='Download a file with all registered player names')
 async def list_players(ctx):
     async with pool.acquire() as connection:
         player_names = await connection.fetch("SELECT name FROM Players ORDER BY name ASC")
         player_names = [p['name'] for p in player_names]
 
-    names_per_embed = 25  # Adjust this number based on your preference for embed density
-    embeds = []
+    # Write to a text file
+    with open('player_names.txt', 'w') as file:
+        file.write('\n'.join(player_names))
 
-    for i in range(0, len(player_names), names_per_embed):
-        embed = discord.Embed(
-            title="Registered Player Names",
-            description="\n".join(player_names[i:i + names_per_embed]),
-            color=discord.Color.blue()
-        )
-        embed.set_footer(text=f"Showing names {i+1} to {min(i+names_per_embed, len(player_names))} of {len(player_names)}")
-        embeds.append(embed)
-
-    # Send all embeds in a sequence
-    for embed in embeds:
-        await ctx.reply(embed=embed, mention_author=True)
-
-
+    # Send the file in Discord
+    with open('player_names.txt', 'rb') as file:
+        await ctx.send("Here's the list of all registered players:", file=discord.File(file, 'player_names.txt'))
 
 
 
@@ -227,7 +217,7 @@ async def map_stats(ctx, player: str, map_name: str):
     try:
         # Fetch player_id based on player name
         player_id = await pool.fetchval(
-            "SELECT player_id FROM Players WHERE name = $1", player
+            "SELECT player_id FROM Players WHERE name ILIKE $1", player
         )
         if not player_id:
             await ctx.send("Player not found.")
@@ -235,14 +225,14 @@ async def map_stats(ctx, player: str, map_name: str):
 
         # Fetch map_id based on map name
         map_id = await pool.fetchval(
-            "SELECT map_id FROM Maps WHERE map_name = $1", map_name
+            "SELECT map_id FROM Maps WHERE map_name ILIKE $1", map_name
         )
         if map_id is None:
             await ctx.reply("Map not found.")
             return
         
         full_name = await pool.fetchval(
-            "SELECT full_name FROM Maps WHERE map_name = $1", map_name
+            "SELECT full_name FROM Maps WHERE map_name ILIKE $1", map_name
         )
         # Fetch player stats for the specific map dynamically
         stats = await pool.fetchrow(
@@ -543,7 +533,7 @@ async def upload_pfp(ctx, player_name: str):
     try:
         async with pool.acquire() as connection:
             await connection.execute(
-                "UPDATE Players SET profile_pic_url = $1 WHERE name = $2",
+                "UPDATE Players SET profile_pic_url = $1 WHERE name ILIKE $2",
                 public_url, player_name
             )
         await ctx.author.dm_channel.send(f"Profile picture for {player_name} uploaded successfully! URL: {public_url}")
