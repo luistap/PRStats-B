@@ -32,9 +32,6 @@ jobs:
                       "inline": true
                     }
                   ],
-                  "image": {
-                    "url": "https://drive.google.com/uc?export=view&id=1YwhiQLQIXqGIPzj9i1K451yvwu0k4hlK"
-                  },
                   "footer": {
                     "text": "@ Packrunners"
                   }
