@@ -185,26 +185,31 @@ async def list_players(ctx):
         file.write('\n'.join(player_names))
 
     # Send the file in Discord
-    with open('player_names.txt', 'rb') as file:
+    with open('names.txt', 'rb') as file:
         await ctx.reply("Here's the list of all registered players:", file=discord.File(file, 'player_names.txt'))
 
 
 
 async def post_match_summary(team1_info, team2_info, gen_info):
-
     channel = bot.get_channel(channel_send)
     if channel:
-        # Format the message
-        message = f"**Match Summary:**\n**Map:** {gen_info[0]}\n**Match Type:** {gen_info[1]}\n**Score:** {gen_info[2]}\n\n"
-        message += "**Team 1 Stats:**\n"
-        for player, stats in team1_info.items():
-            message += f"{player}: Kills: {stats[0]}, Deaths: {stats[1]}, Assists: {stats[2]}\n"
-        message += "\n**Team 2 Stats:**\n"
-        for player, stats in team2_info.items():
-            message += f"{player}: Kills: {stats[0]}, Deaths: {stats[1]}, Assists: {stats[2]}\n"
+        # Creating the embed
+        embed = discord.Embed(
+            title="Match Summary",
+            description=f"**Map:** {gen_info[0]}\n**Match Type:** {gen_info[1]}\n**Score:** {gen_info[2]}",
+            color=discord.Color.blue()  # You can change the color as needed
+        )
+        
+        # Team 1 Stats
+        team1_stats = "\n".join([f"{player}: Kills: {stats[0]}, Deaths: {stats[1]}, Assists: {stats[2]}" for player, stats in team1_info.items()])
+        embed.add_field(name="Team 1 Stats", value=team1_stats, inline=False)
+        
+        # Team 2 Stats
+        team2_stats = "\n".join([f"{player}: Kills: {stats[0]}, Deaths: {stats[1]}, Assists: {stats[2]}" for player, stats in team2_info.items()])
+        embed.add_field(name="Team 2 Stats", value=team2_stats, inline=False)
 
-        # Send the message
-        await channel.send(message)
+        # Send the message with the embed
+        await channel.send(embed=embed)
 
 
 
