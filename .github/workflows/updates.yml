@@ -8,14 +8,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Send Custom Notification
+      - name: Send Custom Notification with Embed
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
           GITHUB_ACTOR="${{ github.actor }}"  # This is the username of the person who initiated the action
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
+          json_payload=$(cat <<-EOF
+            {
+              "embeds": [
+                {
+                  "title": "New PRStats Update",
+                  "description": "$COMMIT_MESSAGE",
+                  "url": "$COMMIT_URL",
+                  "color": 5814783,
+                  "fields": [
+                    {
+                      "name": "Author",
+                      "value": "$GITHUB_ACTOR",
+                      "inline": true
+                    },
+                    {
+                      "name": "View Commit",
+                      "value": "[View Commit]($COMMIT_URL)",
+                      "inline": true
+                    }
+                  ],
+                  "footer": {
+                    "text": "GitHub Actions"
+                  }
+                }
+              ]
+            }
+          EOF
+          )
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "{\"username\": \"GitHub Bot\", \"content\": \"New PRStats update: $COMMIT_MESSAGE\"}" \
+          -d "$json_payload" \
           $WEBHOOK_URL
+
 
