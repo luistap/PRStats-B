@@ -181,12 +181,12 @@ async def list_players(ctx):
         player_names = [p['name'] for p in player_names]
 
     # Write to a text file
-    with open('player_names.txt', 'w') as file:
+    with open('names.txt', 'w') as file:
         file.write('\n'.join(player_names))
 
     # Send the file in Discord
     with open('names.txt', 'rb') as file:
-        await ctx.reply("Here's the list of all registered players:", file=discord.File(file, 'player_names.txt'))
+        await ctx.reply("Here's the list of all registered players:", file=discord.File(file, 'names.txt'))
 
 
 async def post_match_summary(team1_info, team2_info, gen_info):
