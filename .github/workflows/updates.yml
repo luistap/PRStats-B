@@ -17,6 +17,8 @@ jobs:
           COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
           json_payload=$(cat <<-EOF
             {
+              "username": "PRStats Updates",
+              "avatar_url": "https://drive.google.com/uc?export=view&id=1qO1RDDR_A2je9h4Tlpc6CIrwkjH7I1ht",
               "embeds": [
                 {
                   "title": "New PRStats Update",
@@ -30,6 +32,9 @@ jobs:
                       "inline": true
                     }
                   ],
+                  "image": {
+                    "url": "https://drive.google.com/uc?export=view&id=1YwhiQLQIXqGIPzj9i1K451yvwu0k4hlK"
+                  },
                   "footer": {
                     "text": "@ Packrunners"
                   }
@@ -42,5 +47,3 @@ jobs:
           -X POST \
           -d "$json_payload" \
           $WEBHOOK_URL
-
-
