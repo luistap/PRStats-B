@@ -188,7 +188,6 @@ async def list_players(ctx):
     with open('names.txt', 'rb') as file:
         await ctx.reply("Here's the list of all registered players:", file=discord.File(file, 'player_names.txt'))
 
-print("idk tbh")
 
 async def post_match_summary(team1_info, team2_info, gen_info):
     channel = bot.get_channel(channel_send)
