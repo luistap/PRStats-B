@@ -186,7 +186,7 @@ async def list_players(ctx):
 
     # Send the file in Discord
     with open('player_names.txt', 'rb') as file:
-        await ctx.send("Here's the list of all registered players:", file=discord.File(file, 'player_names.txt'))
+        await ctx.reply("Here's the list of all registered players:", file=discord.File(file, 'player_names.txt'))
 
 
 
