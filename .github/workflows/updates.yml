@@ -1,0 +1,46 @@
+name: Custom Discord Notification
+on: [push]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Send Custom Notification with Embed
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
+          GITHUB_ACTOR="${{ github.actor }}"  # This is the username of the person who initiated the action
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
+          json_payload=$(cat <<-EOF
+            {
+              "username": "PRStats Updates",
+              "avatar_url": "https://drive.google.com/uc?export=view&id=1qO1RDDR_A2je9h4Tlpc6CIrwkjH7I1ht",
+              "embeds": [
+                {
+                  "title": "New PRStats Update",
+                  "description": "$COMMIT_MESSAGE",
+                  "url": "$COMMIT_URL",
+                  "color": 5814783,
+                  "fields": [
+                    {
+                      "name": "Author",
+                      "value": "$GITHUB_ACTOR",
+                      "inline": true
+                    }
+                  ],
+                  "footer": {
+                    "text": "@ Packrunners"
+                  }
+                }
+              ]
+            }
+          EOF
+          )
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d "$json_payload" \
+          $WEBHOOK_URL
