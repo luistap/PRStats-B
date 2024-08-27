@@ -21,8 +21,8 @@ jobs:
               "avatar_url": "https://drive.google.com/uc?export=view&id=1qO1RDDR_A2je9h4Tlpc6CIrwkjH7I1ht",
               "embeds": [
                 {
-                  "title": "New PRStats Update",
-                  "description": "$COMMIT_MESSAGE",
+                  "title": "NEW PRSTATS UPDATE",
+                  "description": "***$COMMIT_MESSAGE***",
                   "url": "$COMMIT_URL",
                   "color": 5814783,
                   "fields": [
