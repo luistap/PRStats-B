@@ -16,6 +16,6 @@ jobs:
           GITHUB_ACTOR="${{ github.actor }}"  # This is the username of the person who initiated the action
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "{\"username\": \"GitHub Bot\", \"content\": \"[${{ github.repository }}: ${{ github.ref }}] New PRStats Updates: $COMMIT_MESSAGE\"}" \
+          -d "{\"username\": \"GitHub Bot\", \"content\": \"New PRStats update: $COMMIT_MESSAGE\"}" \
           $WEBHOOK_URL
 
