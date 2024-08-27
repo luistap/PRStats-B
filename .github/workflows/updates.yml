@@ -28,15 +28,10 @@ jobs:
                       "name": "Author",
                       "value": "$GITHUB_ACTOR",
                       "inline": true
-                    },
-                    {
-                      "name": "View Commit",
-                      "value": "[View Commit]($COMMIT_URL)",
-                      "inline": true
                     }
                   ],
                   "footer": {
-                    "text": "GitHub Actions"
+                    "text": "@ Packrunners"
                   }
                 }
               ]
