@@ -1,3 +1,5 @@
+# MODULE FOR WRITING TO THE DATABASE #
+
 
 async def write_match_data(connection, team1_info, team2_info, gen_info):
     map_name, match_type, final_score = gen_info

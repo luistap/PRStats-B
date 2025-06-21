@@ -18,6 +18,7 @@ import requests
 from PIL import Image
 from google.oauth2 import service_account
 from io import BytesIO
+from gql.transport.aiohttp import AIOHTTPTransport
 import time
 
 '''
@@ -49,7 +50,6 @@ bucket = client.bucket(bucket_name)
 token = os.getenv('TOKEN')
 channel_send = 1276412274705432650
 
-default_pfp = os.getenv('DEFAULT_PFP')
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -310,14 +310,6 @@ async def h2h(ctx, player1: str, player2: str):
             await ctx.send("No head-to-head record found between these players.")
             return
 
-        # change to default pfp if no PFP found in db
-        if record['player_one_pic'] is None:
-            record['player_one_pic'] = default_pfp
-        if record['player_two_pic'] is None:
-            record['player_two_pic'] = default_pfp
-
-        merged_url = await merge_images(url1=record['player_one_pic'], url2=record['player_two_pic'], standard_size=(256, 256))
-        merged_url = generate_image_url(merged_url)
         # Constructing the record description based on player wins
         record_description = f"{record['player_one_name']} has a record of {record['player_one_wins']}-{record['player_two_wins']} against {record['player_two_name']} all-time."
 
@@ -327,7 +319,6 @@ async def h2h(ctx, player1: str, player2: str):
             description=record_description,
             color=discord.Color.red()
         )
-        embed.set_image(url=merged_url) 
 
         await ctx.reply(embed=embed, mention_author=True)
 
@@ -378,54 +369,6 @@ async def fetch_h2h_record(connection, player1, player2):
 
     return response
 
-
-async def merge_images(url1, url2, standard_size=(256, 256)):
-
-    response1 = requests.get(url1)
-    response2 = requests.get(url2)
-    image1 = Image.open(BytesIO(response1.content))
-    image2 = Image.open(BytesIO(response2.content))
-
-    image1 = image1.resize(standard_size)
-    image2 = image2.resize(standard_size)
-
-    dst = Image.new('RGB', (standard_size[0] * 2, standard_size[1]))
-    dst.paste(image1, (0, 0))
-    dst.paste(image2, (standard_size[0], 0))
-
-    img_byte_arr = BytesIO()
-    dst.save(img_byte_arr, format='PNG')
-    img_byte_arr.seek(0)
-
-    file_name = "merged_h2h.png"
-    return await upload_to_cloud_storage(img_byte_arr.getvalue(), file_name)
-
-
-async def upload_to_cloud_storage(image_bytes, file_name):
-    """Uploads the image to a cloud storage within the 'merged/' directory and returns the URL."""
-    # Prefix the file name with 'merged/' to store it in the correct folder
-    merged_file_name = f"merged/{file_name}"
-    
-    # Create a blob in the bucket at the specified path
-    blob = bucket.blob(merged_file_name)
-    blob.upload_from_string(image_bytes, content_type='image/png')  # Assuming content type is JPEG
-
-    # Set cache control settings
-    blob.cache_control = "no-cache, max-age=0"
-    blob.patch()  # Apply the cache control settings
-
-    # Construct and return the public URL for the uploaded image
-    public_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
-    print(public_url)
-    return public_url
-
-
-
-def generate_image_url(base_url):
-    timestamp = int(time.time())
-    return f"{base_url}?v={timestamp}"
-
-
 # !player command, for tournament stats
 @bot.command(name='player', help='Displays general statistics of a player')
 async def player_stats(ctx, player_name: str):
@@ -433,7 +376,6 @@ async def player_stats(ctx, player_name: str):
         query = """
         SELECT 
             P.name AS registered_name,
-            P.profile_pic_url,
             COALESCE(SUM(PS.kills), 0) AS total_kills,
             COALESCE(SUM(PS.deaths), 0) AS total_deaths,
             COUNT(PS.player_id) AS matches_played,
@@ -443,25 +385,24 @@ async def player_stats(ctx, player_name: str):
         FROM Players P
         LEFT JOIN Player_Stats PS ON P.player_id = PS.player_id
         WHERE P.name ILIKE $1
-        GROUP BY P.profile_pic_url, P.name;
+        GROUP BY P.name;
         """
         player = await connection.fetchrow(query, player_name)
 
         if not player:
-                embed = discord.Embed(
+            embed = discord.Embed(
                 title="Player Check",
                 description=f"Player name `{player_name}` does not exist in the database.",
-                color=discord.Color.red()  # Red color to indicate an issue or non-existence
-                )
-                embed.set_footer(text="Try checking the spelling or adding them if they're new.")
-                await ctx.reply(embed=embed)
-                return
+                color=discord.Color.red()
+            )
+            embed.set_footer(text="Try checking the spelling or adding them if they're new.")
+            await ctx.reply(embed=embed)
+            return
 
         kd_ratio = player['total_kills'] / player['total_deaths'] if player['total_deaths'] > 0 else float(player['total_kills'])
         win_rate = (player['matches_won'] / player['matches_played'] * 100) if player['matches_played'] > 0 else 0
         assists_per_game = player['total_assists'] / player['matches_played'] if player['matches_played'] > 0 else 0
 
-        # Use monospaced font for alignment
         stats_description = (
             f"**Overall KD:** ```{kd_ratio:.2f}```\n"
             f"**Win Rate:** ```{win_rate:.1f}%```\n"
@@ -469,81 +410,15 @@ async def player_stats(ctx, player_name: str):
             f"**Assists Per Game:** ```{assists_per_game:.1f}```"
         )
 
-        # Create the embed
         embed = discord.Embed(
             title=f"Player Statistics for {player['registered_name']}",
             description=stats_description,
             color=discord.Color.red()
         )
-        embed.set_thumbnail(url=player['profile_pic_url'])
         embed.set_footer(text="Statistics are updated in real-time based on available data.")
 
         await ctx.reply(embed=embed, mention_author=True)
 
-
-
-
-
-@bot.command(name='pfp', help='Upload a new profile picture')
-async def upload_pfp(ctx, player_name: str):
-
-    # does the username exist?
-    if not await botutils.check_player_exists(pool, player_name):
-        # Create an embed message
-        embed = discord.Embed(
-            title="Player Check",
-            description=f"Player name `{player_name}` does not exist in the database.",
-            color=discord.Color.red()  # Red color to indicate an issue or non-existence
-        )
-        embed.set_footer(text="Try checking the spelling or adding them if they're new.")
-        await ctx.send(embed=embed)
-        return
-
-    # Inform the user and start a DM session
-    if ctx.author.dm_channel is None:
-        await ctx.author.create_dm()
-    await ctx.author.dm_channel.send("Please send the new profile picture as an attachment.")
-    
-    # Listen for the next message from this user in DM
-    def check(message):
-        return message.author == ctx.author and message.attachments and isinstance(message.channel, discord.DMChannel)
-
-    try:
-        message = await bot.wait_for('message', check=check, timeout=300.0)  # 5 minutes timeout
-    except asyncio.TimeoutError:
-        await ctx.author.dm_channel.send("You did not send an image in time. Please try the command again if you wish to update your profile picture.")
-        return
-
-    attachment = message.attachments[0]  # Corrected to use the received message in DM
-    file_extension = os.path.splitext(attachment.filename)[1].lower()
-    if file_extension not in ['.png', '.jpg', '.jpeg', '.gif']:
-        await ctx.author.dm_channel.send("Please upload a valid image file (png, jpg, jpeg, gif).")
-        return
-
-    # Set the filename in the bucket
-    file_path = f"images/{ctx.author.id}{file_extension}"
-    blob = bucket.blob(file_path)
-
-    # Download the image from Discord and upload to Google Cloud Storage
-    image_data = await attachment.read()
-    blob.upload_from_string(image_data, content_type=attachment.content_type)
-    blob.cache_control = "no-cache, max-age=0"  # Advises no caching
-    blob.patch()  # Apply the cache control settings
-
-    # Form the public URL
-    public_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
-
-    # Use the global pool to execute the update
-    try:
-        async with pool.acquire() as connection:
-            await connection.execute(
-                "UPDATE Players SET profile_pic_url = $1 WHERE name ILIKE $2",
-                public_url, player_name
-            )
-        await ctx.author.dm_channel.send(f"Profile picture for {player_name} uploaded successfully! URL: {public_url}")
-    except Exception as e:
-        await ctx.author.dm_channel.send(f"Failed to update profile picture for {player_name} in the database.")
-        print(f"Database update error: {e}")
 
 
 class ConfirmationModal(Modal):
@@ -682,4 +557,5 @@ async def upload(ctx):
     except Exception as e:
         print(f"Error: {str(e)}")
         await ctx.send("Failed to send DM. Please check your DM settings.")
+
 
