@@ -14,12 +14,7 @@ from discord.ui import View, Select, Modal, TextInput, Button
 from stats_manager import global_stats_manager
 import asyncpg
 from google.cloud import storage
-import requests
-from PIL import Image
 from google.oauth2 import service_account
-from io import BytesIO
-from gql.transport.aiohttp import AIOHTTPTransport
-import time
 
 '''
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
