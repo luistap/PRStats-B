@@ -600,7 +600,7 @@ async def process_sheet_approvals():
                 continue
 
             name, tracker_link, discord_id, approved = row[:4]
-            approved = approved.strip().lower()
+            approved = str(approved).strip().lower()
             already_processed = len(row) >= 5 and row[4].strip().lower().startswith("processed")
 
             if approved in ["true", "✅", "yes"] and not already_processed:
