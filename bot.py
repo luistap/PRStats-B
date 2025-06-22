@@ -603,7 +603,7 @@ async def process_sheet_approvals():
             approved = str(approved).strip().lower()
             already_processed = len(row) >= 5 and row[4].strip().lower().startswith("processed")
 
-            if approved in ["true", "✅", "yes"] and not already_processed:
+            if approved in ["TRUE", "✅", "true"] and not already_processed:
                 # Fetch member
                 guild = await bot.fetch_guild(GUILD_ID)
                 member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
@@ -623,11 +623,11 @@ async def process_sheet_approvals():
                     await conn.execute("""
                         UPDATE tms_apps
                         SET approval_status = 'approved'
-                        WHERE discord_id = $1
+                        WHERE discord_id::text = $1
                     """, discord_id)
 
                 # Mark the sheet row as processed
-                sheet.update_cell(i, 5, "Processed ✅")
+                sheet.update(f"E{i}", "Processed")
 
     except Exception as e:
         print("❌ Error in approval sync:", e)
