@@ -2,7 +2,7 @@
 # initialize the bot and set commands as needed
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import os
 import asyncio
@@ -15,6 +15,8 @@ from stats_manager import global_stats_manager
 import asyncpg
 from google.cloud import storage
 from google.oauth2 import service_account
+from discord.utils import get
+import gspread
 
 '''
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_creds.json'
@@ -45,6 +47,7 @@ bucket = client.bucket(bucket_name)
 token = os.getenv('TOKEN')
 channel_send = 1276412274705432650
 
+GUILD_ID = 880977932456194119
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -552,5 +555,79 @@ async def upload(ctx):
     except Exception as e:
         print(f"Error: {str(e)}")
         await ctx.send("Failed to send DM. Please check your DM settings.")
+
+
+
+
+
+# APP PROCESSING FUNCTION(S)
+
+@tasks.loop(minutes=2)
+async def process_sheet_approvals():
+    try:
+        print("🔁 Checking Google Sheet for new approvals...")
+
+        # Setup creds and Sheets API
+        scope = [
+            'https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        service_account_info = {
+            "type": os.getenv("GOOGLE_TYPE"),
+            "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+            "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+            "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),
+            "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+            "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+            "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
+            "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+        }
+        creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=scope)
+        client = gspread.authorize(creds)
+
+        # Open sheet and pull all data
+        sheet = client.open("Packrunners TMs").sheet1
+        rows = sheet.get_all_values()
+
+        for i, row in enumerate(rows[1:], start=2):  # skip header, start at row 2
+            if len(row) < 4:
+                continue
+
+            name, tracker_link, discord_id, approved = row[:4]
+            approved = approved.strip().lower()
+            already_processed = len(row) >= 5 and row[4].strip().lower().startswith("processed")
+
+            if approved in ["true", "✅", "yes"] and not already_processed:
+                # Fetch member
+                guild = await bot.fetch_guild(GUILD_ID)
+                member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
+
+                if member is None:
+                    print(f"⚠️ Couldn't find member with ID {discord_id}")
+                    continue
+
+                # Assign role
+                role = get(guild.roles, name="Accepted")  # ✅ use exact role name here
+                if role:
+                    await member.add_roles(role)
+                    print(f"✅ Gave role to {member.display_name}")
+
+                # Update DB (PostgreSQL)
+                async with pool.acquire() as conn:
+                    await conn.execute("""
+                        UPDATE tms_apps
+                        SET approval_status = 'approved'
+                        WHERE discord_id = $1
+                    """, discord_id)
+
+                # Mark the sheet row as processed
+                sheet.update_cell(i, 5, "Processed ✅")
+
+    except Exception as e:
+        print("❌ Error in approval sync:", e)
 
 
