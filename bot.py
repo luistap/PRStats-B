@@ -627,9 +627,13 @@ async def process_sheet_approvals():
                     """, discord_id)
 
                 # Mark the sheet row as processed
-                sheet.update(f"E{i}", "Processed")
+                sheet.update(            
+                        f"E{i}",
+                        [["Processed"]],
+                        value_input_option="USER_ENTERED"   
+                    )
 
     except Exception as e:
-        print("❌ Error in approval sync:", e)
+        print("Error in approval sync:", e)
 
 
