@@ -17,7 +17,7 @@ from google.cloud import storage
 from google.oauth2 import service_account
 
 '''
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'packrunners.json'
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_creds.json'
 load_dotenv()
 '''
 

@@ -38,7 +38,7 @@ async def add_to_sheet(name, tracker_link, discord_id):
         "type": os.getenv("GOOGLE_TYPE"),
         "project_id": os.getenv("GOOGLE_PROJECT_ID"),
         "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
-        "private_key": os.getenv("GOOGLE_PRIVATE_KEY").replace('\\n', '\n'),  # Ensuring proper new line handling
+        "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),  
         "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
         "client_id": os.getenv("GOOGLE_CLIENT_ID"),
         "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
