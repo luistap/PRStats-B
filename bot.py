@@ -101,6 +101,8 @@ async def get_data(ctx):
 async def on_ready():
     await init_db()
     print('Bot is ready and connected to the database!')
+    process_sheet_approvals.start()
+
 
 @bot.event
 async def on_close():
