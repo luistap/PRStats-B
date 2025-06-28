@@ -596,14 +596,16 @@ async def process_sheet_approvals():
         rows = sheet.get_all_values()
 
         for i, row in enumerate(rows[1:], start=2):  # skip header, start at row 2
-            if len(row) < 4:
+            if len(row) < 5:
                 continue
 
-            name, tracker_link, discord_id, approved = row[:4]
+            name, tracker_link, discord_id, approved, denied = row[:5]
             approved = str(approved).strip().lower()
-            already_processed = len(row) >= 5 and row[4].strip().lower().startswith("processed")
+            denied = str(denied).strip().lower()
+            already_processed = len(row) >= 6 and row[5].strip().lower().startswith("processed")
 
-            if approved in ["TRUE", "✅", "true"] and not already_processed:
+
+            if approved in ["TRUE", "true"] or denied in ["FALSE", "false"] and not already_processed:
                 # Fetch member
                 guild = await bot.fetch_guild(GUILD_ID)
                 member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
@@ -612,8 +614,10 @@ async def process_sheet_approvals():
                     print(f"⚠️ Couldn't find member with ID {discord_id}")
                     continue
 
+                role_name = "Accepted" if approved.lower() == "true" else "Denied"
+                
                 # Assign role
-                role = get(guild.roles, name="Accepted")  # ✅ use exact role name here
+                role = get(guild.roles, name=role_name)  # ✅ use exact role name here
                 if role:
                     await member.add_roles(role)
                     print(f"✅ Gave role to {member.display_name}")
@@ -622,13 +626,13 @@ async def process_sheet_approvals():
                 async with pool.acquire() as conn:
                     await conn.execute("""
                         UPDATE tms_apps
-                        SET approval_status = 'approved'
-                        WHERE discord_id::text = $1
-                    """, discord_id)
+                        SET approval_status = $1
+                        WHERE discord_id::text = $2
+                    """, role_name, discord_id)
 
                 # Mark the sheet row as processed
                 sheet.update(            
-                        f"E{i}",
+                        f"F{i}",
                         [["Processed"]],
                         value_input_option="USER_ENTERED"   
                     )
