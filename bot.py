@@ -605,7 +605,7 @@ async def process_sheet_approvals():
             already_processed = len(row) >= 6 and row[5].strip().lower().startswith("processed")
 
 
-            if (approved in ["TRUE", "true"] or denied in ["FALSE", "false"]) and not already_processed:
+            if (approved in ["TRUE", "true"] or denied in ["true", "TRUE"]) and not already_processed:
                 # Fetch member
                 guild = await bot.fetch_guild(GUILD_ID)
                 member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
