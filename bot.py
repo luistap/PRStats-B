@@ -326,7 +326,7 @@ async def h2h(ctx, player1: str, player2: str):
 async def fetch_h2h_record(connection, player1, player2):
     # Fetch player details for both players
     players = await connection.fetch(
-        "SELECT player_id, name, profile_pic_url FROM Players WHERE name ILIKE $1 OR name ILIKE $2",
+        "SELECT player_id, name FROM Players WHERE name ILIKE $1 OR name ILIKE $2",
         player1, player2
     )
     if len(players) < 2:
@@ -354,9 +354,7 @@ async def fetch_h2h_record(connection, player1, player2):
         'player_one_name': player1_data['name'],
         'player_two_name': player2_data['name'],
         'player_one_wins': None,
-        'player_two_wins': None,
-        'player_one_pic': player1_data['profile_pic_url'],
-        'player_two_pic': player2_data['profile_pic_url']
+        'player_two_wins': None
     }
 
     # Assign wins based on the actual order in the database record
