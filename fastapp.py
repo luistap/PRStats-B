@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from write import write_match_data
 from pydantic import BaseModel
-from bot import start_bot, confirm_stats, post_match_summary, pool
+from bot import start_bot, init_db, confirm_stats, post_match_summary, pool
 from stats_manager import global_stats_manager
 
 
@@ -124,6 +124,7 @@ def ping():
 
 async def main():
 
+    await init_db()
     asyncio.create_task(cleanup_codes())
     # Create a task for the bot
     bot_task = asyncio.create_task(start_bot())
