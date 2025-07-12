@@ -6,11 +6,12 @@ import os
 import datetime
 import utilities
 import asyncio
+import asyncpg
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from write import write_match_data
 from pydantic import BaseModel
-from bot import start_bot, init_db, confirm_stats, post_match_summary, pool
+from bot import start_bot, confirm_stats, post_match_summary
 from stats_manager import global_stats_manager
 
 
@@ -26,6 +27,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+database_pool = None
+
+async def init_fastapi_pool():
+    global database_pool
+    try:
+        print("DB_NAME:", os.getenv('DB_NAME'))
+        print("USER:", os.getenv('USER'))
+        print("PASSWORD:", os.getenv('PASSWORD'))
+        print("HOST_NAME:", os.getenv('HOST_NAME'))
+        database_pool = await asyncpg.create_pool(
+            database= os.getenv('DB_NAME'),
+            user= os.getenv('PGUSER'),
+            password= os.getenv('PGPASSWORD'),
+            host= os.getenv('HOST_NAME'),
+            ssl="require"
+        )
+        print("Connection pool created successfully")
+    except Exception as e:
+        print(f"Failed to create pool: {e}")
+
 
 class AccessCodeData(BaseModel):
     user_id: str
@@ -100,7 +122,7 @@ async def upload_image(
         # we write to the db here
         # Assuming conn is your active database connection
         await post_match_summary(team1_info, team2_info, gen_info)
-        async with pool.acquire() as connection:
+        async with database_pool.acquire() as connection:
             await write_match_data(connection, team1_info, team2_info, gen_info)
 
 
@@ -124,7 +146,7 @@ def ping():
 
 async def main():
 
-    await init_db()
+    await init_fastapi_pool()
     asyncio.create_task(cleanup_codes())
     # Create a task for the bot
     bot_task = asyncio.create_task(start_bot())
