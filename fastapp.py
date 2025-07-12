@@ -10,7 +10,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from write import write_match_data
 from pydantic import BaseModel
-from bot import start_bot, confirm_stats, post_match_summary
+from bot import start_bot, confirm_stats, post_match_summary, pool
 from stats_manager import global_stats_manager
 
 
@@ -89,13 +89,6 @@ async def upload_image(
         team1_info = utilities.clean_board(team1_info)
         team2_info = utilities.clean_board(team2_info)
 
-        # establish connection to the database
-        connection = await utilities.create_connection()
-     #   db_names = utilities.get_all_player_names(connection)
-
-       # await utilities.process_names(team1_info.keys(), db_names, user_id, team1_info)
-       # await utilities.process_names(team2_info.keys(), db_names, user_id, team2_info)
-        
         global_stats_manager.set_teams(team1_info, team2_info)
 
         await confirm_stats(user_id, team1_info, team2_info)
@@ -107,7 +100,9 @@ async def upload_image(
         # we write to the db here
         # Assuming conn is your active database connection
         await post_match_summary(team1_info, team2_info, gen_info)
-        await write_match_data(connection, team1_info, team2_info, gen_info)
+        async with pool.acquire() as connection:
+            await write_match_data(connection, team1_info, team2_info, gen_info)
+
 
         del codes[access_code]  # delete access code post-write
     else:
