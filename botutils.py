@@ -3,6 +3,9 @@
 import gspread
 import os
 from google.oauth2 import service_account
+from discord.ext import commands
+import discord
+
 
 STAT_TYPE_ORDER = ["Kills", "Deaths", "Assists"]
 
@@ -55,3 +58,33 @@ async def add_to_sheet(name, tracker_link, discord_id):
     sheet = client.open("Packrunners TMs").sheet1  # Access the first sheet in the spreadsheet
     # Append a row with the new data
     sheet.insert_row([name, tracker_link, str(discord_id)], index=2)
+
+
+
+async def notify_admin(bot: commands.Bot):
+    ADMIN_CHANNEL_ID = 1394477723883405433
+    ADMIN_ROLE_ID    = 1392323963358675005
+
+    # 1) grab the channel
+    channel = bot.get_channel(ADMIN_CHANNEL_ID)
+    if not isinstance(channel, discord.TextChannel):
+        raise RuntimeError(f"Admin channel {ADMIN_CHANNEL_ID} not found")
+
+    # 2) build the mention string
+    guild = channel.guild
+    role  = guild.get_role(ADMIN_ROLE_ID)
+    mention = role.mention if role else f"<@&{ADMIN_ROLE_ID}>"
+
+    # 3) build the embed
+    embed = discord.Embed(
+        title="🆕 New TM Application",
+        description="A new TM application has been submitted! Check out the spreadsheet to approve or deny.",
+        color=discord.Color.blue()
+    )
+
+    # 4) send it, pinging the role
+    await channel.send(
+        content=mention,
+        embed=embed,
+        allowed_mentions=discord.AllowedMentions(roles=True)
+    )

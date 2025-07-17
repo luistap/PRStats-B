@@ -100,6 +100,7 @@ async def get_data(ctx):
 @bot.event
 async def on_ready():
     await init_db()
+    bot.add_view(ApplicationView())
     print('Bot is ready and connected to the database!')
     process_sheet_approvals.start()
 
@@ -158,6 +159,7 @@ class app_modal(Modal):
             ''', player_id, discord_id , handle, tracker_link)
         
         await botutils.add_to_sheet(handle, tracker_link, discord_id)
+        await botutils.notify_admin(interaction.client)
         return
 
 
