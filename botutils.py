@@ -62,7 +62,7 @@ async def add_to_sheet(name, tracker_link, discord_id):
 
 
 async def notify_admin(bot: commands.Bot):
-    ADMIN_CHANNEL_ID = 1394477723883405433
+    ADMIN_CHANNEL_ID = 1395591815264075786
     ADMIN_ROLE_ID    = 1392323963358675005
 
     # 1) grab the channel
