@@ -402,12 +402,14 @@ async def player_stats(ctx, player_name: str):
         kd_ratio = player['total_kills'] / player['total_deaths'] if player['total_deaths'] > 0 else float(player['total_kills'])
         win_rate = (player['matches_won'] / player['matches_played'] * 100) if player['matches_played'] > 0 else 0
         assists_per_game = player['total_assists'] / player['matches_played'] if player['matches_played'] > 0 else 0
+        kills_per_game = player['total_kills'] / player['matches_played'] if player['matches_played'] > 0 else 0
 
         stats_description = (
             f"**Overall KD:** ```{kd_ratio:.2f}```\n"
             f"**Win Rate:** ```{win_rate:.1f}%```\n"
             f"**Total Maps Played:** ```{player['matches_played']}```\n"
-            f"**Assists Per Game:** ```{assists_per_game:.1f}```"
+            f"**Kills / Game:** ```{kills_per_game:.1f}```\n"
+            f"**Assists / Game:** ```{assists_per_game:.1f}```"
         )
 
         embed = discord.Embed(
@@ -564,7 +566,7 @@ async def upload(ctx):
 
 # APP PROCESSING FUNCTION(S)
 
-@tasks.loop(minutes=2)
+@tasks.loop(minutes=1)
 async def process_sheet_approvals():
     try:
         print("🔁 Checking Google Sheet for new approvals...")
