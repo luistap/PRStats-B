@@ -111,9 +111,11 @@ async def upload_image(
         team1_info = utilities.clean_board(team1_info)
         team2_info = utilities.clean_board(team2_info)
 
-        global_stats_manager.set_teams(team1_info, team2_info)
+        session_id = access_code
 
-        await confirm_stats(user_id, team1_info, team2_info)
+        global_stats_manager.set_teams(session_id, team1_info, team2_info)
+
+        await confirm_stats(user_id, session_id)
 
         team1_info = global_stats_manager.get_team_info('team1')
         team2_info = global_stats_manager.get_team_info('team2')

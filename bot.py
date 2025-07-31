@@ -424,42 +424,40 @@ async def player_stats(ctx, player_name: str):
 
 
 class ConfirmationModal(Modal):
-    def __init__(self, title="Enter the correct value", player=None, team1_info=None, team2_info=None, selected_stat=None):
+    def __init__(self, title, player, session_id, selected_stat=None):
         super().__init__(title=title)
         self.player = player
         self.selected_stat = selected_stat
-        self.team1_info = team1_info
-        self.team2_info = team2_info
+        self.session_id = session_id
         self.add_item(TextInput(label="Value:", placeholder="Enter the correct value"))
 
     async def on_submit(self, interaction: discord.Interaction):
         corrected_value = self.children[0].value
         # Determine which team the player is in and the index for the stat
-        team = 'team1' if self.player in global_stats_manager.get_team_info('team1') else 'team2'
+        team = 'team1' if self.player in global_stats_manager.get_team_info(self.session_id, 'team1') else 'team2'
         stat_indices = {'Kills': 0, 'Deaths': 1, 'Assists': 2}
         
         if self.selected_stat in stat_indices:
             # For numerical stats like Kills, Deaths, Assists
             stat_index = stat_indices[self.selected_stat]
-            global_stats_manager.update_stat(team, self.player, stat_index, int(corrected_value))
+            global_stats_manager.update_stat(self.session_id, team, self.player, stat_index, int(corrected_value))
         elif self.selected_stat == "Name":
             # Special case for updating names
-            global_stats_manager.update_name(team, corrected_value, self.player)
+            global_stats_manager.update_name(self.session_id, corrected_value, self.player)
             
         embed = discord.Embed(title="Your Modal Results", color=discord.Color.blurple())
         embed.add_field(name="Corrected Value", value=corrected_value, inline=False)
-        embed.add_field(name="Updated stats: Team 1", value=botutils.format_player_stats(global_stats_manager.get_team_info('team1')), inline=False)
-        embed.add_field(name="Updated stats: Team 2", value=botutils.format_player_stats(global_stats_manager.get_team_info('team2')), inline=False)
+        embed.add_field(name="Updated stats: Team 1", value=botutils.format_player_stats(global_stats_manager.get_team_info(self.session_id, 'team1')), inline=False)
+        embed.add_field(name="Updated stats: Team 2", value=botutils.format_player_stats(global_stats_manager.get_team_info(self.session_id, 'team2')), inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         # Reinstate the confirmation view to allow further corrections
-        view = ConfirmationView(interaction.user.id, self.team1_info, self.team2_info)
+        view = ConfirmationView(interaction.user.id, self.session_id)
         await interaction.followup.send("Would you like to make more corrections?", view=view)
 
 class StatCorrectionSelect(Select):
-    def __init__(self, player, team1_info, team2_info):
+    def __init__(self, player, session_id):
         self.player = player
-        self.team1_info = team1_info
-        self.team2_info = team2_info
+        self.session_id = session_id
         options = [
             discord.SelectOption(label="Name", description="Correct the player's name"),
             discord.SelectOption(label="Kills", description="Correct the number of kills"),
@@ -471,13 +469,14 @@ class StatCorrectionSelect(Select):
     async def callback(self, interaction: discord.Interaction):
         selected_stat = self.values[0]
         modal = ConfirmationModal(title=f"Correcting {selected_stat} for {self.player}", 
-                                  player=self.player, team1_info=self.team1_info, team2_info=self.team2_info, selected_stat=self.values[0])
+                                  player=self.player, session_id=self.session_id, selected_stat=self.values[0])
         await interaction.response.send_modal(modal)
 
 class PlayerSelect(Select):
-    def __init__(self, team1_info, team2_info):
+    def __init__(self, team1_info, team2_info, session_id):
         self.team1_info = team1_info
         self.team2_info = team2_info
+        self.session_id = session_id
         options = [
             discord.SelectOption(label=player, description="Team 1") for player in team1_info
         ] + [
@@ -488,43 +487,37 @@ class PlayerSelect(Select):
     async def callback(self, interaction: discord.Interaction):
         selected_player = self.values[0]
         self.view.clear_items()  # Clear previous items in the view
-        self.view.add_item(StatCorrectionSelect(selected_player, self.team1_info, self.team2_info))
+        self.view.add_item(StatCorrectionSelect(selected_player, self.session_id))
         await interaction.response.edit_message(content=f"You selected {selected_player}. What needs correction?", view=self.view)
 
 class ConfirmationView(View):
-    def __init__(self, user_id, team1_info, team2_info):
+    def __init__(self, user_id, session_id):
         super().__init__(timeout=None)
         self.user_id = user_id
-        self.team1_info = team1_info
-        self.team2_info = team2_info
-        self.add_item(PlayerSelect(team1_info, team2_info))
+        team1_info = global_stats_manager.get_team_info(session_id, 'team1')
+        team2_info = global_stats_manager.get_team_info(session_id, 'team2')
+        self.session_id = session_id
+        self.add_item(PlayerSelect(team1_info, team2_info, session_id))
 
     @discord.ui.button(label="Done", style=ButtonStyle.green, custom_id="confirm_done")
     async def confirm_done(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("Corrections are complete. Thank you!", ephemeral=True)
         correction_completed_event.set()
-        
+        global_stats_manager.clear_session(self.session_id)
 
-async def confirm_stats(user_id, team1_info, team2_info):
+
+async def confirm_stats(user_id, session_id):
     user = await bot.fetch_user(user_id)
     if user:
+        team1_info = global_stats_manager.get_team_info(session_id, 'team1')
+        team2_info = global_stats_manager.get_team_info(session_id, 'team2')
         raw_team1 = botutils.format_player_stats(team1_info)
         raw_team2 = botutils.format_player_stats(team2_info)
         dm_channel = await user.create_dm()
-        view = ConfirmationView(user_id, team1_info, team2_info)
+        view = ConfirmationView(user_id, session_id)
         await dm_channel.send("Please review the stats and make corrections as needed.\n" + raw_team1 + "\n" + raw_team2, view=view)
         await correction_completed_event.wait()  # Wait until the corrections are confirmed as done
         correction_completed_event.clear()  # Reset the event for future use
-
-
-# obtain correction from user mid-pipeline
-async def prompt_correction(user_id, extracted_name):
-    user = await bot.fetch_user(user_id)
-    if user:
-        dm_channel = await user.create_dm()
-        message = (f"OCR extracted the name '{extracted_name}'. "
-                   "Please reply with the correct name.")
-        await dm_channel.send(message)
 
 @bot.command(name='upload', help='Fetch a screenshot from users and provide an access code.')
 async def upload(ctx):
