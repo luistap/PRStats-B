@@ -28,3 +28,6 @@ class StatsManager:
     def clear_session(self, session_id):
         if session_id in self.sessions:
             del self.sessions[session_id]
+
+
+global_stats_manager = StatsManager()
