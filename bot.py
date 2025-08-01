@@ -37,7 +37,7 @@ credentials = service_account.Credentials.from_service_account_info({
     "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
 })
 
-
+stat_ops_id = 1400932740043636807
 
 client = storage.Client(credentials=credentials, project=credentials.project_id)
 bucket_name = os.getenv('BUCKET_NAME')
@@ -521,7 +521,7 @@ async def confirm_stats(user_id, session_id):
 
 @bot.command(name='upload', help='Fetch a screenshot from users and provide an access code.')
 async def upload(ctx):
-    if not ctx.author.guild_permissions.administrator:
+    if not any(role.id == stat_ops_id for role in ctx.author.roles):
         await ctx.send("You do not have permission to perform this action.")
         return
 
