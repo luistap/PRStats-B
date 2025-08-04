@@ -627,7 +627,7 @@ async def process_sheet_approvals():
 
                 # Mark the sheet row as processed
                 sheet.update(            
-                        f"F{i}",
+                        f"G{i}",
                         [["Processed"]],
                         value_input_option="USER_ENTERED"   
                     )
