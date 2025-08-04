@@ -113,7 +113,12 @@ async def upload_image(
 
         session_id = access_code
 
+        print(team1_info)
+
         global_stats_manager.set_teams(session_id, team1_info, team2_info)
+
+        team1_info = global_stats_manager.get_team_info(session_id, 'team1')
+        print(team1_info)
 
         await confirm_stats(user_id, session_id)
 
