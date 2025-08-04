@@ -57,7 +57,7 @@ async def add_to_sheet(name, tracker_link, discord_id, creation_date):
     # Open the spreadsheet by its title
     sheet = client.open("Packrunners TMs").sheet1  # Access the first sheet in the spreadsheet
     # Append a row with the new data
-    sheet.insert_row([name, tracker_link, str(discord_id), str(creation_date)], index=2)
+    sheet.insert_row([name, tracker_link, str(discord_id)[:19], str(creation_date)], index=2)
 
 
 
