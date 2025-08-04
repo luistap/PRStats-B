@@ -32,7 +32,7 @@ async def check_player_exists(pool, player_name):
         return exists
     
 
-async def add_to_sheet(name, tracker_link, discord_id):
+async def add_to_sheet(name, tracker_link, discord_id, creation_date):
     # Define the scope of the application
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
 
@@ -57,7 +57,7 @@ async def add_to_sheet(name, tracker_link, discord_id):
     # Open the spreadsheet by its title
     sheet = client.open("Packrunners TMs").sheet1  # Access the first sheet in the spreadsheet
     # Append a row with the new data
-    sheet.insert_row([name, tracker_link, str(discord_id)], index=2)
+    sheet.insert_row([name, tracker_link, str(discord_id)], creation_date, index=2)
 
 
 

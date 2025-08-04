@@ -149,6 +149,7 @@ class app_modal(Modal):
         handle = self.children[0].value
         tracker_link = self.children[1].value
         discord_id = interaction.user.id
+        creation_date = interaction.user.created_at
         # check name match in db
         async with pool.acquire() as connection:
             player_id = await connection.fetchval('SELECT player_id FROM Players WHERE name = $1', handle)
@@ -158,7 +159,7 @@ class app_modal(Modal):
                 VALUES ($1, $2, $3, $4)
             ''', player_id, discord_id , handle, tracker_link)
         
-        await botutils.add_to_sheet(handle, tracker_link, discord_id)
+        await botutils.add_to_sheet(handle, tracker_link, discord_id, creation_date)
         await botutils.notify_admin(interaction.client)
         return
 
@@ -593,10 +594,10 @@ async def process_sheet_approvals():
             if len(row) < 5:
                 continue
 
-            name, tracker_link, discord_id, approved, denied = row[:5]
+            name, tracker_link, discord_id, created_at, approved, denied = row[:6]
             approved = str(approved).strip().lower()
             denied = str(denied).strip().lower()
-            already_processed = len(row) >= 6 and row[5].strip().lower().startswith("processed")
+            already_processed = len(row) >= 7 and row[6].strip().lower().startswith("processed")
 
 
             if (approved in ["TRUE", "true"] or denied in ["true", "TRUE"]) and not already_processed:
