@@ -117,8 +117,8 @@ async def upload_image(
 
         await confirm_stats(user_id, session_id)
 
-        team1_info = global_stats_manager.get_team_info('team1')
-        team2_info = global_stats_manager.get_team_info('team2')
+        team1_info = global_stats_manager.get_team_info(session_id, 'team1')
+        team2_info = global_stats_manager.get_team_info(session_id, 'team2')
         # team1 and team2 info now correct, write to the db
 
         # we write to the db here
