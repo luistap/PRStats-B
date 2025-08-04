@@ -113,12 +113,9 @@ async def upload_image(
 
         session_id = access_code
 
-        print(team1_info)
-
         global_stats_manager.set_teams(session_id, team1_info, team2_info)
 
         team1_info = global_stats_manager.get_team_info(session_id, 'team1')
-        print(team1_info)
 
         await confirm_stats(user_id, session_id)
 
@@ -134,6 +131,7 @@ async def upload_image(
 
 
         del codes[access_code]  # delete access code post-write
+        global_stats_manager.clear_session(session_id) # clear the session ID
     else:
         raise HTTPException(status_code=403, detail="Invalid or expired access code.")
     return

@@ -503,7 +503,6 @@ class ConfirmationView(View):
     async def confirm_done(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("Corrections are complete. Thank you!", ephemeral=True)
         correction_completed_event.set()
-        global_stats_manager.clear_session(self.session_id)
 
 
 async def confirm_stats(user_id, session_id):
