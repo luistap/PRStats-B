@@ -17,6 +17,8 @@ from google.cloud import storage
 from google.oauth2 import service_account
 from discord.utils import get
 import gspread
+from gspread.exceptions import APIError
+
 
 '''
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_creds.json'
@@ -642,16 +644,22 @@ async def process_sheet_approvals():
 APPROVED_ROLE_ID = 1383244700101906552
 DENIED_ROLE_ID   = 1383244810906763376
 
+# process in slices so we don't do 1700 rows every 2 min
+ROW_SLICE_SIZE = 500
+_process_offset = 0  # module-level
+
 @tasks.loop(minutes=2)
 async def process_role_changes():
+    global _process_offset
     try:
-        print("searching for potential role changes...")
+        print("TM role->sheet sync: scanning…")
 
+        # --- Sheets auth ---
         scope = [
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
         ]
-        service_account_info = {
+        sa = {
             "type": os.getenv("GOOGLE_TYPE"),
             "project_id": os.getenv("GOOGLE_PROJECT_ID"),
             "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
@@ -663,66 +671,102 @@ async def process_role_changes():
             "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
             "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL"),
         }
-        creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=scope)
-        client = gspread.authorize(creds)
+        creds = service_account.Credentials.from_service_account_info(sa, scopes=scope)
+        gc = gspread.authorize(creds)
 
-        sheet = client.open("Packrunners TMs").sheet1
-        rows  = sheet.get_all_values()
+        ws = gc.open("Packrunners TMs").sheet1
+
+        # --- Guild & members ---
         guild = bot.get_guild(GUILD_ID) or await bot.fetch_guild(GUILD_ID)
 
-        for i, row in enumerate(rows[1:], start=2):
-            if len(row) < 6:
-                continue
+        # Prefer cache (requires Intents.members=True). If cache is cold, fetch all once.
+        member_map = {m.id: m for m in guild.members}
+        if len(member_map) < 50:
+            member_map = {}
+            async for m in guild.fetch_members(limit=None):
+                member_map[m.id] = m
 
+        # --- Read only needed range; compute slice ---
+        all_vals = ws.get_all_values()  # cheap metadata read
+        total_rows = max(0, len(all_vals) - 1)
+        if total_rows == 0:
+            print("TM role->sheet sync: no rows.")
+            return
+
+        start_row = 2 + _process_offset
+        end_row   = min(1 + _process_offset + ROW_SLICE_SIZE, 1 + total_rows)
+        if start_row > 1 + total_rows:
+            # wrap around
+            _process_offset = 0
+            start_row = 2
+            end_row   = min(1 + ROW_SLICE_SIZE, 1 + total_rows)
+
+        rng = f"A{start_row}:F{end_row}"  # A=name, B=tracker, C=discord_id, D=created, E=approved, F=denied
+        rows = ws.get(rng, value_render_option="UNFORMATTED_VALUE")  # get real booleans for checkboxes
+
+        updates = []
+        scanned = 0
+        changed = 0
+
+        for idx, row in enumerate(rows, start=start_row):
+            scanned += 1
+            # row may be shorter; pad
+            row += [""] * (6 - len(row)) if len(row) < 6 else []
             name, tracker_link, discord_id, created_at, approved, denied = row[:6]
-            print(f"processing {i}: {name}")
 
-            # normalize checkbox strings -> booleans
-            approved_val = str(approved).strip().lower() == "true"
-            denied_val   = str(denied).strip().lower() == "true"
-
-            # OPTIONAL: remove this gate (it likely skips most rows)
-            # already_processed = len(row) >= 7 and row[6].strip().lower().startswith("processed")
-            # if not already_processed:
-            #     continue
+            # normalize sheet values to bools
+            approved_val = bool(approved)  # already True/False/'' from UNFORMATTED_VALUE
+            denied_val   = bool(denied)
 
             did = str(discord_id).strip()
             if not did.isdigit():
                 continue
             uid = int(did)
 
-            member = guild.get_member(uid)
+            member = member_map.get(uid)
             if member is None:
-                try:
-                    member = await guild.fetch_member(uid)
-                except discord.NotFound:
-                    # user not in guild → treat as Pending (both FALSE)
-                    desired_approve, desired_deny = False, False
-                else:
-                    # got member, fall through to role logic
-                    pass
+                # not in guild -> Pending
+                desired_approve, desired_deny = False, False
+            else:
+                has_approved = any(r.id == APPROVED_ROLE_ID for r in member.roles)
+                has_denied   = any(r.id == DENIED_ROLE_ID   for r in member.roles)
 
-            if member:
-                has_approved_role = any(r.id == APPROVED_ROLE_ID for r in member.roles)
-                has_denied_role   = any(r.id == DENIED_ROLE_ID   for r in member.roles)
-
-                # Mirror Discord → Sheet
-                if has_approved_role and not has_denied_role:
+                if has_approved and not has_denied:
                     desired_approve, desired_deny = True, False
-                elif has_denied_role and not has_approved_role:
+                elif has_denied and not has_approved:
                     desired_approve, desired_deny = False, True
                 else:
-                    # neither or both -> Pending
-                    desired_approve, desired_deny = False, False
+                    desired_approve, desired_deny = False, False  # neither or both -> Pending
 
-            # only write if different
-            try:
-                if desired_approve != approved_val:
-                    sheet.update(f"E{i}", [["TRUE" if desired_approve else "FALSE"]], value_input_option="USER_ENTERED")
-                if desired_deny != denied_val:
-                    sheet.update(f"F{i}", [["TRUE" if desired_deny else "FALSE"]], value_input_option="USER_ENTERED")
-            except Exception as ge:
-                print(f"Google update failed on row {i}: {ge}")
+            # queue diffs
+            if desired_approve != approved_val:
+                updates.append({"range": f"E{idx}", "values": [["TRUE" if desired_approve else "FALSE"]]})
+                changed += 1
+            if desired_deny != denied_val:
+                updates.append({"range": f"F{idx}", "values": [["TRUE" if desired_deny else "FALSE"]]})
+                changed += 1
+
+            # yield control occasionally so loop doesn’t look frozen
+            if scanned % 200 == 0:
+                await asyncio.sleep(0)
+
+        # --- Batch updates in chunks ---
+        if updates:
+            print(f"TM role->sheet sync: prepared {len(updates)} cell updates over {scanned} rows.")
+            for i in range(0, len(updates), 300):  # ~300 ranges per call is safe
+                chunk = updates[i:i+300]
+                try:
+                    ws.batch_update(chunk, value_input_option="USER_ENTERED")
+                    await asyncio.sleep(0.5)  # gentle pacing for quotas
+                except APIError as e:
+                    try:
+                        print("Google APIError payload:", e.response.json())
+                    except Exception:
+                        print("Google APIError:", e)
+
+        # advance slice for next run
+        _process_offset = ( _process_offset + (end_row - start_row + 1) )
+        print(f"TM role->sheet sync: scanned {scanned}/{total_rows} rows in this pass, changed {changed} cells. Next start row={2 + _process_offset if 2 + _process_offset <= 1 + total_rows else 2}")
 
     except Exception as e:
         print("Error in role changes sync:", e)
