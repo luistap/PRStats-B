@@ -636,3 +636,76 @@ async def process_sheet_approvals():
         print("Error in approval sync:", e)
 
 
+@tasks.loop(minutes=2)
+async def process_role_changes():
+
+    try:
+
+        # Setup creds and Sheets API
+        scope = [
+            'https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        service_account_info = {
+            "type": os.getenv("GOOGLE_TYPE"),
+            "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+            "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+            "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),
+            "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
+            "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+            "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
+            "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+        }
+        creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=scope)
+        client = gspread.authorize(creds)
+
+
+        # Open sheet and pull all data
+        sheet = client.open("Packrunners TMs").sheet1
+        rows = sheet.get_all_values()
+
+        for i, row in enumerate(rows[1:], start=2):  # skip header, start at row 2
+            if len(row) < 5:
+                continue
+
+            name, tracker_link, discord_id, created_at, approved, denied = row[:6]
+            approved = str(approved).strip().lower()
+            denied = str(denied).strip().lower()
+            already_processed = len(row) >= 7 and row[6].strip().lower().startswith("processed")
+
+            if already_processed:
+
+                guild = await bot.fetch_guild(GUILD_ID)
+                member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
+
+                if member is None:
+                    print("Member not found in server")
+                    continue
+
+                # member found
+
+                has_approved_role = discord.utils.get(member.roles, name="Accepted")
+                has_denied_role = discord.utils.get(member.roles, name="Denied")
+
+                if approved == "true" and not has_approved_role:
+                    # approved in sheet but not on discord
+                    # sync change on the sheet
+
+                    # Mark the sheet row as processed
+                    sheet.update(f"E{i}", [["FALSE"]], value_input_option="USER_ENTERED")
+                    sheet.update(f"F{i}", [["TRUE"]], value_input_option="USER_ENTERED")
+
+                elif denied == "true" and not has_denied_role:
+
+                    sheet.update(f"E{i}", [["TRUE"]], value_input_option="USER_ENTERED")
+                    sheet.update(f"F{i}", [["FALSE"]], value_input_option="USER_ENTERED")
+
+    except Exception as e:
+        print("Error in role changes sync:", e)
+
+
+
