@@ -643,6 +643,7 @@ async def process_role_changes():
 
     try:
 
+        print("searching for potential role changes...")
         # Setup creds and Sheets API
         scope = [
             'https://spreadsheets.google.com/feeds',
@@ -669,19 +670,22 @@ async def process_role_changes():
         # Open sheet and pull all data
         sheet = client.open("Packrunners TMs").sheet1
         rows = sheet.get_all_values()
+        guild = await bot.fetch_guild(GUILD_ID)
 
         for i, row in enumerate(rows[1:], start=2):  # skip header, start at row 2
-            if len(row) < 5:
+            if len(row) < 6:
                 continue
-
+            
             name, tracker_link, discord_id, created_at, approved, denied = row[:6]
             approved = str(approved).strip().lower()
             denied = str(denied).strip().lower()
             already_processed = len(row) >= 7 and row[6].strip().lower().startswith("processed")
 
+
+            print("processing " + name)
+
             if already_processed:
 
-                guild = await bot.fetch_guild(GUILD_ID)
                 member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
 
                 if member is None:
