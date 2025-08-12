@@ -103,6 +103,8 @@ async def on_ready():
     bot.add_view(ApplicationView())
     print('Bot is ready and connected to the database!')
     process_sheet_approvals.start()
+    process_role_changes.start()
+
 
 
 @bot.event
