@@ -638,17 +638,17 @@ async def process_sheet_approvals():
         print("Error in approval sync:", e)
 
 
+
+APPROVED_ROLE_ID = 1383244700101906552
+DENIED_ROLE_ID   = 1383244810906763376
+
 @tasks.loop(minutes=2)
 async def process_role_changes():
-
     try:
-
         print("searching for potential role changes...")
-        # Setup creds and Sheets API
+
         scope = [
-            'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive.file',
             'https://www.googleapis.com/auth/drive'
         ]
         service_account_info = {
@@ -661,60 +661,72 @@ async def process_role_changes():
             "auth_uri": os.getenv("GOOGLE_AUTH_URI"),
             "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
             "auth_provider_x509_cert_url": os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL"),
-            "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+            "client_x509_cert_url": os.getenv("GOOGLE_CLIENT_X509_CERT_URL"),
         }
         creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=scope)
         client = gspread.authorize(creds)
 
-
-        # Open sheet and pull all data
         sheet = client.open("Packrunners TMs").sheet1
-        rows = sheet.get_all_values()
-        guild = await bot.fetch_guild(GUILD_ID)
+        rows  = sheet.get_all_values()
+        guild = bot.get_guild(GUILD_ID) or await bot.fetch_guild(GUILD_ID)
 
-        for i, row in enumerate(rows[1:], start=2):  # skip header, start at row 2
+        for i, row in enumerate(rows[1:], start=2):
             if len(row) < 6:
                 continue
-            
+
             name, tracker_link, discord_id, created_at, approved, denied = row[:6]
-            approved = str(approved).strip().lower()
-            denied = str(denied).strip().lower()
-            already_processed = len(row) >= 7 and row[6].strip().lower().startswith("processed")
+            print(f"processing {i}: {name}")
 
+            # normalize checkbox strings -> booleans
+            approved_val = str(approved).strip().lower() == "true"
+            denied_val   = str(denied).strip().lower() == "true"
 
-            print("processing " + name)
+            # OPTIONAL: remove this gate (it likely skips most rows)
+            # already_processed = len(row) >= 7 and row[6].strip().lower().startswith("processed")
+            # if not already_processed:
+            #     continue
 
-            if already_processed:
+            did = str(discord_id).strip()
+            if not did.isdigit():
+                continue
+            uid = int(did)
 
-                member = guild.get_member(int(discord_id)) or await guild.fetch_member(int(discord_id))
+            member = guild.get_member(uid)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(uid)
+                except discord.NotFound:
+                    # user not in guild → treat as Pending (both FALSE)
+                    desired_approve, desired_deny = False, False
+                else:
+                    # got member, fall through to role logic
+                    pass
 
-                if member is None:
-                    print("Member not found in server")
-                    continue
-
-                # member found
-
-                APPROVED_ROLE_ID = 1383244700101906552
-                DENIED_ROLE_ID   = 1383244810906763376
-
+            if member:
                 has_approved_role = any(r.id == APPROVED_ROLE_ID for r in member.roles)
                 has_denied_role   = any(r.id == DENIED_ROLE_ID   for r in member.roles)
 
-                if approved in ["TRUE", "true"] and (not has_approved_role and has_denied_role):
-                    # approved in sheet but not on discord
-                    # sync change on the sheet
+                # Mirror Discord → Sheet
+                if has_approved_role and not has_denied_role:
+                    desired_approve, desired_deny = True, False
+                elif has_denied_role and not has_approved_role:
+                    desired_approve, desired_deny = False, True
+                else:
+                    # neither or both -> Pending
+                    desired_approve, desired_deny = False, False
 
-                    # Mark the sheet row as processed
-                    sheet.update(f"E{i}", [["FALSE"]], value_input_option="USER_ENTERED")
-                    sheet.update(f"F{i}", [["TRUE"]], value_input_option="USER_ENTERED")
-
-                elif denied in ["true", "TRUE"] and (not has_denied_role and has_approved_role):
-
-                    sheet.update(f"E{i}", [["TRUE"]], value_input_option="USER_ENTERED")
-                    sheet.update(f"F{i}", [["FALSE"]], value_input_option="USER_ENTERED")
+            # only write if different
+            try:
+                if desired_approve != approved_val:
+                    sheet.update(f"E{i}", [["TRUE" if desired_approve else "FALSE"]], value_input_option="USER_ENTERED")
+                if desired_deny != denied_val:
+                    sheet.update(f"F{i}", [["TRUE" if desired_deny else "FALSE"]], value_input_option="USER_ENTERED")
+            except Exception as ge:
+                print(f"Google update failed on row {i}: {ge}")
 
     except Exception as e:
         print("Error in role changes sync:", e)
+
 
 
 
