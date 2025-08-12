@@ -690,10 +690,13 @@ async def process_role_changes():
 
                 # member found
 
-                has_approved_role = discord.utils.get(member.roles, name="Accepted")
-                has_denied_role = discord.utils.get(member.roles, name="Denied")
+                APPROVED_ROLE_ID = 1383244700101906552
+                DENIED_ROLE_ID   = 1383244810906763376
 
-                if approved == "true" and not has_approved_role:
+                has_approved_role = any(r.id == APPROVED_ROLE_ID for r in member.roles)
+                has_denied_role   = any(r.id == DENIED_ROLE_ID   for r in member.roles)
+
+                if approved in ["TRUE", "true"] and (not has_approved_role and has_denied_role):
                     # approved in sheet but not on discord
                     # sync change on the sheet
 
@@ -701,7 +704,7 @@ async def process_role_changes():
                     sheet.update(f"E{i}", [["FALSE"]], value_input_option="USER_ENTERED")
                     sheet.update(f"F{i}", [["TRUE"]], value_input_option="USER_ENTERED")
 
-                elif denied == "true" and not has_denied_role:
+                elif denied in ["true", "TRUE"] and (not has_denied_role and has_approved_role):
 
                     sheet.update(f"E{i}", [["TRUE"]], value_input_option="USER_ENTERED")
                     sheet.update(f"F{i}", [["FALSE"]], value_input_option="USER_ENTERED")
